@@ -27,7 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Fix ImageMagick policy for MoviePy
-RUN sed -i 's/pixel cache limit="1GiB"/pixel cache limit="2GiB"/' /etc/ImageMagick-6/policy.xml
+# Check for both possible policy file locations
+RUN if [ -f /etc/ImageMagick-7/policy.xml ]; then \
+        sed -i 's/pixel cache limit="1GiB"/pixel cache limit="2GiB"/' /etc/ImageMagick-7/policy.xml; \
+    elif [ -f /etc/ImageMagick-6/policy.xml ]; then \
+        sed -i 's/pixel cache limit="1GiB"/pixel cache limit="2GiB"/' /etc/ImageMagick-6/policy.xml; \
+    else \
+        echo "Warning: ImageMagick policy file not found"; \
+    fi
 
 # Copy requirements
 COPY requirements.txt .
