@@ -15,11 +15,11 @@ class Config:
     """Main configuration class for Kinva Master Bot"""
     
     # ============= BOT CONFIGURATION =============
-    BOT_TOKEN = os.getenv('BOT_TOKEN', '8776043562:AAHLiV5VKyUXvhscNJ6FZZ2YLlqYiag_tHc')
+    BOT_TOKEN = os.getenv('BOT_TOKEN', '8791110410:AAEA9_7uuWhm8_pEL1znW1WAai5vrSuIMxI')
     ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '8525952693').split(',')]
     
     # ============= WEB APP CONFIGURATION =============
-    WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://kinva-master-bot.onrender.com')
+    WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://kinva-master-bot-main.onrender.com')
     WEB_APP_PORT = int(os.getenv('PORT', 5000))
     WEB_APP_HOST = os.getenv('HOST', '0.0.0.0')
     SECRET_KEY = os.getenv('SECRET_KEY', 'kinva-master-secret-key-2024')
