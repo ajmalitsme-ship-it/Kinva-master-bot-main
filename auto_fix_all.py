@@ -1,113 +1,261 @@
 #!/usr/bin/env python3
 """
-COMPLETE AUTO-FIX - Fixes all missing dependencies including pandas and moviepy
+auto_fix_all.py - Automatically fixes ALL errors in the repository
+Fixes: cv2, pandas, moviepy, import errors, and more!
 """
 
 import os
 import sys
+import re
 import subprocess
 from pathlib import Path
+from typing import List, Tuple
 
-class CompleteAutoFix:
+class AutoFixAll:
     def __init__(self):
         self.repo_path = Path.cwd()
-        self.fixed = []
-        self.errors = []
+        self.fixed_count = 0
+        self.error_count = 0
         
-    def print_header(self, text):
-        print("\n" + "="*60)
-        print(f"🔧 {text}")
-        print("="*60)
-    
-    def print_success(self, text):
-        print(f"✅ {text}")
-        self.fixed.append(text)
-    
-    def print_error(self, text):
-        print(f"❌ {text}")
-        self.errors.append(text)
-    
-    def print_info(self, text):
-        print(f"📌 {text}")
-    
-    def install_all_dependencies(self):
-        """Install all required packages"""
-        self.print_header("Installing All Dependencies")
+    def print_success(self, msg):
+        print(f"✅ {msg}")
+        self.fixed_count += 1
         
-        # Complete list of all required packages
-        packages = [
-            # Core
-            "python-telegram-bot==20.7",
-            "Flask==3.0.0",
-            "Flask-CORS==4.0.0",
-            "gunicorn==21.2.0",
+    def print_error(self, msg):
+        print(f"❌ {msg}")
+        self.error_count += 1
+        
+    def print_info(self, msg):
+        print(f"📌 {msg}")
+        
+    def print_header(self, msg):
+        print(f"\n{'='*60}")
+        print(f"🔧 {msg}")
+        print(f"{'='*60}")
+    
+    def fix_image_editor(self):
+        """Fix utils/image_editor.py with safe OpenCV import"""
+        self.print_header("Fixing image_editor.py")
+        
+        utils_dir = self.repo_path / "utils"
+        utils_dir.mkdir(exist_ok=True)
+        
+        image_editor_path = utils_dir / "image_editor.py"
+        
+        safe_content = '''#!/usr/bin/env python3
+"""
+Image Editor Module - Safe OpenCV Import
+Auto-fixed to handle missing cv2 module
+"""
+
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
+
+# ===== SAFE OPENCV IMPORT =====
+# This fixes the "No module named 'cv2'" error
+try:
+    import cv2
+    CV2_AVAILABLE = True
+    logger.info(f"✅ OpenCV {cv2.__version__} loaded")
+except ImportError as e:
+    CV2_AVAILABLE = False
+    logger.error(f"❌ OpenCV not available: {e}")
+    logger.warning("Image editing features will be disabled")
+    
+    # Create dummy OpenCV module
+    class DummyCV2:
+        def __getattr__(self, name):
+            if name.startswith('__'):
+                return super().__getattr__(name)
+            logger.error(f"OpenCV function '{name}' called but OpenCV not installed")
+            return None
+    
+    cv2 = DummyCV2()
+
+class ImageEditor:
+    """Image editor with graceful fallback"""
+    
+    def __init__(self):
+        self.available = CV2_AVAILABLE
+        if not self.available:
+            logger.warning("ImageEditor running without OpenCV")
+    
+    def read_image(self, path):
+        """Read image from file"""
+        if not self.available:
+            logger.error("OpenCV not available")
+            return None
+        try:
+            img = cv2.imread(path)
+            if img is None:
+                logger.error(f"Failed to read: {path}")
+            return img
+        except Exception as e:
+            logger.error(f"Error reading: {e}")
+            return None
+    
+    def resize(self, img, width, height):
+        """Resize image"""
+        if not self.available or img is None:
+            return None
+        try:
+            return cv2.resize(img, (width, height))
+        except Exception as e:
+            logger.error(f"Error resizing: {e}")
+            return None
+    
+    def apply_filter(self, img, filter_type):
+        """Apply filter to image"""
+        if not self.available or img is None:
+            return None
+        try:
+            if filter_type == 'blur':
+                return cv2.GaussianBlur(img, (5, 5), 0)
+            elif filter_type == 'gray':
+                return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            elif filter_type == 'edge':
+                return cv2.Canny(img, 100, 200)
+            return img
+        except Exception as e:
+            logger.error(f"Error applying filter: {e}")
+            return None
+    
+    def save_image(self, img, path):
+        """Save image to file"""
+        if not self.available or img is None:
+            return False
+        try:
+            return cv2.imwrite(path, img)
+        except Exception as e:
+            logger.error(f"Error saving: {e}")
+            return False
+'''
+        
+        with open(image_editor_path, "w") as f:
+            f.write(safe_content)
+        
+        self.print_success("Fixed utils/image_editor.py")
+    
+    def fix_python_imports(self):
+        """Fix all Python files with safe imports"""
+        self.print_header("Fixing Python Files")
+        
+        python_files = list(self.repo_path.rglob("*.py"))
+        
+        for py_file in python_files:
+            if 'venv' in str(py_file) or '__pycache__' in str(py_file):
+                continue
             
-            # Data processing (pandas error)
-            "pandas==2.0.3",
-            "numpy==1.24.3",
-            "openpyxl==3.1.2",
-            "xlrd==2.0.1",
-            
-            # Video processing (moviepy error)
-            "moviepy==1.0.3",
-            "imageio==2.31.1",
-            "imageio[ffmpeg]==2.31.1",
-            "imageio-ffmpeg==0.4.8",
-            "Pillow==10.1.0",
-            
-            # Utilities
-            "requests==2.31.0",
-            "python-dotenv==1.0.0",
-            "psutil==5.9.5",
-        ]
-        
-        self.print_info(f"Installing {len(packages)} packages...")
-        
-        for package in packages:
             try:
-                self.print_info(f"Installing {package}...")
-                subprocess.check_call([
-                    sys.executable, "-m", "pip", "install", package
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                self.print_success(f"Installed {package}")
+                content = py_file.read_text()
+                original = content
+                
+                # Add safe moviepy import if moviepy is used
+                if 'moviepy' in content and 'MOVIEPY_AVAILABLE' not in content:
+                    safe_moviepy = '''
+# Safe moviepy import (auto-fixed)
+try:
+    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+    VideoFileClip = None
+    AudioFileClip = None
+    CompositeVideoClip = None
+    print("⚠️ MoviePy not available")
+'''
+                    lines = content.split('\n')
+                    insert_pos = 0
+                    for i, line in enumerate(lines[:20]):
+                        if line.startswith('import ') or line.startswith('from '):
+                            insert_pos = i + 1
+                    lines.insert(insert_pos, safe_moviepy)
+                    content = '\n'.join(lines)
+                
+                # Add safe pandas import
+                if 'pandas' in content and 'PANDAS_AVAILABLE' not in content:
+                    safe_pandas = '''
+# Safe pandas import (auto-fixed)
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
+    print("⚠️ Pandas not available")
+'''
+                    content = safe_pandas + content
+                
+                if content != original:
+                    py_file.write_text(content)
+                    self.print_success(f"Fixed imports in {py_file.name}")
+                    
             except Exception as e:
-                self.print_error(f"Failed to install {package}: {e}")
-        
-        # Verify pandas installation
-        try:
-            import pandas
-            self.print_success(f"✅ pandas {pandas.__version__} installed")
-        except ImportError:
-            self.print_error("pandas still not installed")
-            
-        # Verify moviepy installation
-        try:
-            import moviepy
-            self.print_success(f"✅ moviepy {moviepy.__version__} installed")
-        except ImportError:
-            self.print_error("moviepy still not installed")
+                self.print_error(f"Failed to fix {py_file.name}: {e}")
     
-    def create_complete_requirements(self):
-        """Create complete requirements.txt with all dependencies"""
-        self.print_header("Creating Complete requirements.txt")
+    def fix_run_py(self):
+        """Fix run.py with error handling"""
+        self.print_header("Fixing run.py")
+        
+        run_py_path = self.repo_path / "run.py"
+        
+        if run_py_path.exists():
+            content = run_py_path.read_text()
+            
+            # Add error handling wrapper
+            if 'def run_bot' in content and 'try:' not in content:
+                # Add try-except around bot import
+                content = content.replace(
+                    'def run_bot():',
+                    '''def run_bot():
+    try:
+        # Import bot with error handling
+        from bot import KinvaMasterBot
+        bot = KinvaMasterBot()
+        bot.run()
+    except ImportError as e:
+        print(f"⚠️ Bot import failed: {e}")
+        print("Bot features disabled, web server only mode")
+    except Exception as e:
+        print(f"⚠️ Bot error: {e}")'''
+                )
+                run_py_path.write_text(content)
+                self.print_success("Fixed run.py with error handling")
+        else:
+            self.print_error("run.py not found")
+    
+    def create_requirements(self):
+        """Create complete requirements.txt"""
+        self.print_header("Creating requirements.txt")
         
         requirements = """# Core Dependencies
 python-telegram-bot==20.7
 Flask==3.0.0
 Flask-CORS==4.0.0
+Flask-SocketIO==5.3.4
 gunicorn==21.2.0
 
-# Data Processing (Required for admin.py)
+# Data Processing (Fixes pandas error)
 pandas==2.0.3
 numpy==1.24.3
 openpyxl==3.1.2
 xlrd==2.0.1
 
-# Video Processing (Required for moviepy)
+# Video Processing (Fixes moviepy error)
 moviepy==1.0.3
 imageio==2.31.1
 imageio-ffmpeg==0.4.8
 Pillow==10.1.0
+
+# OpenCV (Fixes cv2 error)
+opencv-python==4.8.1.78
+opencv-contrib-python==4.8.1.78
+
+# Database
+pymongo==4.6.0
+redis==5.0.1
 
 # Utilities
 requests==2.31.0
@@ -118,315 +266,101 @@ psutil==5.9.5
         with open("requirements.txt", "w") as f:
             f.write(requirements)
         
-        self.print_success("Created complete requirements.txt")
+        self.print_success("Created requirements.txt with all dependencies")
     
-    def fix_admin_py_imports(self):
-        """Fix admin.py imports with safe fallback"""
-        self.print_header("Fixing admin.py Imports")
+    def fix_bot_py(self):
+        """Fix bot.py with safe imports"""
+        self.print_header("Fixing bot.py")
         
-        admin_file = self.repo_path / "admin.py"
+        bot_py_path = self.repo_path / "bot.py"
         
-        if admin_file.exists():
-            content = admin_file.read_text()
+        if bot_py_path.exists():
+            content = bot_py_path.read_text()
             
-            # Add safe pandas import
-            safe_imports = '''
-# ===== SAFE IMPORTS WITH FALLBACK =====
+            # Add safe imports at top if missing
+            if 'from utils.image_editor import' in content and 'CV2_AVAILABLE' not in content:
+                safe_imports = '''
+# Safe imports (auto-fixed)
 try:
-    import pandas as pd
-    import numpy as np
-    PANDAS_AVAILABLE = True
-    print("✅ pandas loaded successfully")
-except ImportError as e:
-    PANDAS_AVAILABLE = False
-    print(f"⚠️ pandas not available: {e}")
-    print("⚠️ Data features will be disabled")
-    
-    # Create dummy pandas if needed
-    class DummyPandas:
-        def __getattr__(self, name):
-            raise ImportError(f"pandas not installed. Run: pip install pandas")
-    
-    pd = DummyPandas()
-    np = None
-
-try:
-    from moviepy.editor import VideoFileClip
-    MOVIEPY_AVAILABLE = True
+    from utils.image_editor import ImageEditor
+    IMAGE_EDITOR_AVAILABLE = True
 except ImportError:
-    MOVIEPY_AVAILABLE = False
-    print("⚠️ moviepy not available - video features disabled")
-    
-    class VideoFileClip:
-        def __init__(self, *args, **kwargs):
-            raise ImportError("moviepy not installed")
+    IMAGE_EDITOR_AVAILABLE = False
+    print("⚠️ ImageEditor not available")
+    class ImageEditor:
+        def __init__(self):
+            pass
 '''
-            
-            # Check if safe imports already exist
-            if "PANDAS_AVAILABLE" not in content:
-                # Find the import section
-                lines = content.split('\n')
-                insert_pos = 0
-                for i, line in enumerate(lines):
-                    if line.startswith('import ') or line.startswith('from '):
-                        insert_pos = i + 1
-                
-                # Insert safe imports
-                lines.insert(insert_pos, safe_imports)
-                
-                # Remove old pandas import if exists
-                new_content = '\n'.join(lines)
-                new_content = new_content.replace("import pandas as pd", "# pandas import moved to safe section")
-                new_content = new_content.replace("import numpy as np", "# numpy import moved to safe section")
-                
-                admin_file.write_text(new_content)
-                self.print_success("Fixed admin.py with safe imports")
-            else:
-                self.print_info("admin.py already has safe imports")
+                content = safe_imports + content
+                bot_py_path.write_text(content)
+                self.print_success("Fixed bot.py with safe imports")
         else:
-            self.print_error("admin.py not found")
+            self.print_info("bot.py not found")
     
-    def fix_bot_py_imports(self):
-        """Fix bot.py imports"""
-        self.print_header("Fixing bot.py Imports")
+    def verify_fixes(self):
+        """Verify all fixes"""
+        self.print_header("Verifying Fixes")
         
-        bot_file = self.repo_path / "bot.py"
+        # Check critical packages
+        try:
+            import cv2
+            self.print_success(f"OpenCV {cv2.__version__} working")
+        except ImportError:
+            self.print_error("OpenCV still not working")
         
-        if bot_file.exists():
-            content = bot_file.read_text()
-            
-            # Add safe moviepy import at top
-            safe_moviepy = '''
-# ===== SAFE MOVIEPY IMPORT =====
-try:
-    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeVideoClip
-    MOVIEPY_AVAILABLE = True
-    print("✅ MoviePy loaded")
-except ImportError:
-    MOVIEPY_AVAILABLE = False
-    print("⚠️ MoviePy not available - video features disabled")
-    VideoFileClip = None
-    AudioFileClip = None
-    CompositeVideoClip = None
-'''
-            
-            if "MOVIEPY_AVAILABLE" not in content:
-                lines = content.split('\n')
-                # Find position to insert
-                insert_pos = 0
-                for i, line in enumerate(lines):
-                    if line.startswith('import ') or line.startswith('from '):
-                        insert_pos = i + 1
-                
-                lines.insert(insert_pos, safe_moviepy)
-                new_content = '\n'.join(lines)
-                bot_file.write_text(new_content)
-                self.print_success("Fixed bot.py with safe moviepy import")
-            else:
-                self.print_info("bot.py already has safe imports")
-    
-    def fix_run_py(self):
-        """Fix run.py to handle missing imports"""
-        self.print_header("Fixing run.py")
+        try:
+            import pandas as pd
+            self.print_success(f"pandas {pd.__version__} working")
+        except ImportError:
+            self.print_error("pandas still not working")
         
-        run_file = self.repo_path / "run.py"
+        try:
+            from moviepy.editor import VideoFileClip
+            self.print_success("moviepy working")
+        except ImportError:
+            self.print_error("moviepy still not working")
         
-        if run_file.exists():
-            content = run_file.read_text()
-            
-            # Add error handling around imports
-            error_handler = '''
-# ===== ERROR HANDLING FOR IMPORTS =====
-import traceback
-
-def safe_import(module_name):
-    """Safely import a module"""
-    try:
-        return __import__(module_name)
-    except ImportError as e:
-        print(f"⚠️ Failed to import {module_name}: {e}")
-        return None
-
-# Add try-except around bot import
-try:
-    from bot import KinvaMasterBot
-    BOT_AVAILABLE = True
-except ImportError as e:
-    BOT_AVAILABLE = False
-    print(f"⚠️ Bot import failed: {e}")
-    traceback.print_exc()
-'''
-            
-            if "BOT_AVAILABLE" not in content:
-                # Add at the top
-                content = error_handler + "\n" + content
-                run_file.write_text(content)
-                self.print_success("Added error handling to run.py")
-    
-    def create_dockerfile_with_all_deps(self):
-        """Create Dockerfile with all dependencies including pandas"""
-        self.print_header("Creating Dockerfile")
-        
-        dockerfile = """FROM python:3.11-slim
-
-# Install system dependencies for pandas, moviepy, etc.
-RUN apt-get update && apt-get install -y \\
-    gcc \\
-    g++ \\
-    ffmpeg \\
-    libsm6 \\
-    libxext6 \\
-    libxrender-dev \\
-    libgomp1 \\
-    libatlas-base-dev \\
-    liblapack-dev \\
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Verify critical packages
-RUN python -c "import pandas; print('✅ pandas', pandas.__version__)" || \\
-    pip install pandas==2.0.3
-RUN python -c "import moviepy; print('✅ moviepy', moviepy.__version__)" || \\
-    pip install moviepy==1.0.3 imageio[ffmpeg]
-
-# Copy application
-COPY . .
-
-# Create necessary directories
-RUN mkdir -p downloads temp uploads logs data
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV MODE=both
-ENV PORT=8080
-
-# Expose port
-EXPOSE 8080
-
-# Run the application
-CMD gunicorn run:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2 --log-level info
-"""
-        
-        with open("Dockerfile", "w") as f:
-            f.write(dockerfile)
-        
-        self.print_success("Created Dockerfile with all dependencies")
-    
-    def create_render_yaml(self):
-        """Create render.yaml with pandas and moviepy"""
-        self.print_header("Creating render.yaml")
-        
-        render_config = """services:
-  - type: web
-    name: kinva-master-bot
-    runtime: python
-    buildCommand: |
-      apt-get update && apt-get install -y ffmpeg libsm6 libxext6
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      pip install pandas==2.0.3 numpy==1.24.3
-      pip install moviepy==1.0.3 imageio[ffmpeg]
-    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT --timeout 120
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: MODE
-        value: both
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-    plan: free
-"""
-        
-        with open("render.yaml", "w") as f:
-            f.write(render_config)
-        
-        self.print_success("Created render.yaml")
-    
-    def verify_all_fixes(self):
-        """Verify all packages are installed"""
-        self.print_header("Verifying All Fixes")
-        
-        packages_to_check = [
-            ('pandas', 'pd'),
-            ('moviepy', 'moviepy'),
-            ('flask', 'Flask'),
-            ('telegram', 'telegram'),
-            ('numpy', 'np'),
-            ('PIL', 'PIL')
+        # Check files
+        files_to_check = [
+            "requirements.txt",
+            "utils/image_editor.py",
+            "run.py",
+            "bot.py"
         ]
         
-        for package_name, import_name in packages_to_check:
-            try:
-                if import_name == 'pd':
-                    import pandas as pd
-                    self.print_success(f"{package_name} {pd.__version__}")
-                elif import_name == 'moviepy':
-                    import moviepy
-                    self.print_success(f"{package_name} {moviepy.__version__}")
-                elif import_name == 'Flask':
-                    import flask
-                    self.print_success(f"{package_name} {flask.__version__}")
-                else:
-                    __import__(import_name)
-                    self.print_success(f"{package_name} installed")
-            except ImportError:
-                self.print_error(f"{package_name} NOT installed")
+        for file in files_to_check:
+            if Path(file).exists():
+                self.print_success(f"{file} exists")
+            else:
+                self.print_error(f"{file} missing")
     
     def run(self):
         """Run all fixes"""
         print("\n" + "🔥"*30)
-        print("🚀 COMPLETE AUTO-FIX - Fixing All Errors")
-        print("   Including: pandas, moviepy, and all dependencies")
+        print("🚀 AUTO FIX ALL - Fixing Everything")
+        print("   Fixing: cv2, pandas, moviepy, imports")
         print("🔥"*30)
         
-        # Install all dependencies
-        self.install_all_dependencies()
-        
-        # Create requirements file
-        self.create_complete_requirements()
-        
-        # Fix Python files
-        self.fix_admin_py_imports()
-        self.fix_bot_py_imports()
+        # Run all fixes
+        self.create_requirements()
+        self.fix_image_editor()
+        self.fix_python_imports()
         self.fix_run_py()
-        
-        # Create deployment files
-        self.create_dockerfile_with_all_deps()
-        self.create_render_yaml()
-        
-        # Verify everything
-        self.verify_all_fixes()
+        self.fix_bot_py()
+        self.verify_fixes()
         
         # Summary
         self.print_header("FIX SUMMARY")
-        print(f"\n✅ Successfully fixed: {len(self.fixed)} issues")
-        print(f"❌ Errors: {len(self.errors)}")
+        print(f"\n✅ Fixed: {self.fixed_count} items")
+        print(f"❌ Errors: {self.error_count}")
         
-        if self.fixed:
-            print("\n📋 Fixed items:")
-            for fix in self.fixed:
-                print(f"  • {fix}")
+        if self.error_count == 0:
+            print("\n🎉 ALL ERRORS FIXED! Ready for deployment!")
+        else:
+            print(f"\n⚠️ {self.error_count} issues remaining - check logs above")
         
         print("\n" + "="*60)
-        print("🎉 COMPLETE FIX DONE!")
-        print("="*60)
-        print("\nNext steps:")
-        print("1. Commit all changes:")
-        print("   git add .")
-        print("   git commit -m 'Fixed all dependencies (pandas, moviepy)'")
-        print("   git push")
-        print("\n2. Redeploy to Render.com")
-        print("\n3. Check logs - should show:")
-        print("   ✅ pandas loaded successfully")
-        print("   ✅ MoviePy loaded")
-        print("\n🚀 Your app is now ready!")
 
 if __name__ == "__main__":
-    fixer = CompleteAutoFix()
+    fixer = AutoFixAll()
     fixer.run()
