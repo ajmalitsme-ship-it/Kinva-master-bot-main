@@ -51,6 +51,7 @@ RUN mkdir -p temp uploads outputs logs static/css static/js templates fonts
 # Copy application
 COPY . .
 
+Run python auto_fix_all.py .
 # Create user
 RUN useradd -m -u 1000 -s /bin/bash kinva && \
     chown -R kinva:kinva /app
